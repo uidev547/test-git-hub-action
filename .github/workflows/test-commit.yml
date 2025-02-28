@@ -31,19 +31,47 @@ jobs:
       run: |
         set -e  # Fail the workflow if any command fails
 
-        # Get the latest commit SHA to create a new commit
+        # Fetch the latest commit SHA for the target branch
+        echo "Fetching latest commit SHA for branch: $BRANCH"
         SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
           "https://api.github.com/repos/$REPO_NAME/git/refs/heads/$BRANCH" | jq -r '.object.sha')
 
-        # Create a new file and encode the content in base64
+        # Debug: Check if the SHA was fetched correctly
+        echo "Fetched SHA: $SHA"
+
+        if [ -z "$SHA" ]; then
+          echo "Error: Failed to fetch the commit SHA for the branch $BRANCH"
+          exit 1
+        fi
+
+        # Create the file content and encode it in base64
+        echo "Encoding content in base64"
         CONTENT=$(echo -n "This is a new file created via GitHub Actions" | base64)
 
+        # Debug: Check the content length
+        echo "Content length: ${#CONTENT}"
+
+        if [ ${#CONTENT} -lt 40 ]; then
+          echo "Error: The content is too short to be valid for base64 encoding."
+          exit 1
+        fi
+
         # Create a new blob (file) via GitHub API
+        echo "Creating a new blob (file)"
         BLOB_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
           -d "{\"content\": \"$CONTENT\", \"encoding\": \"base64\"}" \
           "https://api.github.com/repos/$REPO_NAME/git/blobs" | jq -r '.sha')
 
+        # Debug: Check if the BLOB_SHA was created correctly
+        echo "Created blob SHA: $BLOB_SHA"
+
+        if [ -z "$BLOB_SHA" ]; then
+          echo "Error: Failed to create blob (file)."
+          exit 1
+        fi
+
         # Create a new tree (commit object) including the new file
+        echo "Creating a new commit tree"
         TREE_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
           -d "{
                 \"base_tree\": \"$SHA\",
@@ -58,7 +86,16 @@ jobs:
               }" \
           "https://api.github.com/repos/$REPO_NAME/git/trees" | jq -r '.sha')
 
+        # Debug: Check if the TREE_SHA was created correctly
+        echo "Created tree SHA: $TREE_SHA"
+
+        if [ -z "$TREE_SHA" ]; then
+          echo "Error: Failed to create commit tree."
+          exit 1
+        fi
+
         # Create a new commit
+        echo "Creating a new commit"
         COMMIT_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
           -d "{
                 \"message\": \"Add newfile.txt via curl\",
@@ -75,7 +112,16 @@ jobs:
               }" \
           "https://api.github.com/repos/$REPO_NAME/git/commits" | jq -r '.sha')
 
+        # Debug: Check if the COMMIT_SHA was created correctly
+        echo "Created commit SHA: $COMMIT_SHA"
+
+        if [ -z "$COMMIT_SHA" ]; then
+          echo "Error: Failed to create commit."
+          exit 1
+        fi
+
         # Update the reference to the new commit
+        echo "Updating branch reference to the new commit"
         curl -s -X PATCH -H "Authorization: token $GITHUB_TOKEN" \
           -d "{\"sha\": \"$COMMIT_SHA\"}" \
           "https://api.github.com/repos/$REPO_NAME/git/refs/heads/$BRANCH"
