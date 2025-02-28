@@ -39,6 +39,7 @@ jobs:
         # Fetch the latest commit SHA for the target branch
         echo "Fetching latest commit SHA for branch: $BRANCH"
         SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
           "https://api.github.com/repos/$REPO_NAME/git/refs/heads/$BRANCH" | jq -r '.object.sha')
 
         # Debug: Check if the SHA was fetched correctly
@@ -64,6 +65,7 @@ jobs:
         # Create a new blob (file) via GitHub API
         echo "Creating a new blob (file)"
         BLOB_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
           -d "{\"content\": \"$CONTENT\", \"encoding\": \"base64\"}" \
           "https://api.github.com/repos/$REPO_NAME/git/blobs" | jq -r '.sha')
 
@@ -78,6 +80,7 @@ jobs:
         # Create a new tree (commit object) including the new file
         echo "Creating a new commit tree"
         TREE_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
           -d "{
                 \"base_tree\": \"$SHA\",
                 \"tree\": [
@@ -102,6 +105,7 @@ jobs:
         # Create a new commit
         echo "Creating a new commit"
         COMMIT_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
           -d "{
                 \"message\": \"Add newfile.txt via curl\",
                 \"tree\": \"$TREE_SHA\",
@@ -128,5 +132,6 @@ jobs:
         # Update the reference to the new commit
         echo "Updating branch reference to the new commit"
         curl -s -X PATCH -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
           -d "{\"sha\": \"$COMMIT_SHA\"}" \
           "https://api.github.com/repos/$REPO_NAME/git/refs/heads/$BRANCH"
