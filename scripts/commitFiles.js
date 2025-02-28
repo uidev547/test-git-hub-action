@@ -7,7 +7,7 @@ const [REPO_OWNER, REPO_NAME] = process.env.GITHUB_REPOSITORY.split('/');
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN; // GitHub token for authentication
 const TARGET_BRANCH = process.env.TARGET_BRANCH || 'main'; // Target branch to commit to
 const FILE_PATH = 'newfile.txt'; // Path for the new file to be created
-const FILE_CONTENT = 'This is a new file created via Node.js script';
+const FILE_CONTENT = `This is a new file created via Node.js script ${Date.now()}`;
 
 async function createCommit() {
   try {
