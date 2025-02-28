@@ -36,4 +36,4 @@ jobs:
         TARGET_BRANCH: ${{ github.event.inputs.target_branch }}  # Target branch specified by the user
       run: |
         # Run the script from the 'scripts' folder
-        node scripts/commitFile.js
+        node scripts/commitFiles.js
