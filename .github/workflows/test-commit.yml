@@ -29,9 +29,19 @@ jobs:
       run: |
         npm install axios  # Install the necessary dependencies
 
+    - name: App token
+      uses: actions/create-github-app-token@v1
+      id: app-token
+      with:
+        app-id: 1161353
+        private-key: ${{secrets.APP_KEY}}
+
+    - name: set token in env
+      run: echo "GITHUB_TOKEN=${{steps.app-token.outputs.token}}" >> "$GITHUB_ENV"
+
     - name: Run commitFile.js script
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # GitHub token to access the repository
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}  # GitHub token to access the repository
         GITHUB_REPOSITORY: ${{ github.repository }}  # Get repo in 'owner/repo' format
         TARGET_BRANCH: ${{ github.event.inputs.target_branch }}  # Target branch specified by the user
       run: |
