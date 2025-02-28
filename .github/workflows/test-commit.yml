@@ -1,0 +1,16 @@
+name: Test commit
+on:
+  workflow_dispatch:
+    inputs: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: staring
+        run: echo "welcome to test commit"
