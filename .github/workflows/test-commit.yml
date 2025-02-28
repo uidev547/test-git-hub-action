@@ -1,4 +1,4 @@
-name: Commit New File with curl
+name: Commit New File via Node.js
 
 on:
   workflow_dispatch:
@@ -9,9 +9,8 @@ on:
         default: 'main'  # Default to 'main' if no branch is provided
 
 permissions:
-  contents: write
-  pull-requests: write
-  actions: write
+  contents: write  # Grant write permissions to the contents of the repository
+  actions: read    # Read access to Actions (for workflow usage)
 
 jobs:
   commit:
@@ -21,117 +20,20 @@ jobs:
     - name: Checkout the repository
       uses: actions/checkout@v2
 
-    - name: Create new file
-      run: |
-        set -e  # Fail the workflow if any command fails
-        echo "This is a new file created via GitHub Actions" > newfile.txt
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '14'  # Set to the desired Node.js version
 
-    - name: Commit new file via curl
+    - name: Install dependencies
+      run: |
+        npm install axios  # Install the necessary dependencies
+
+    - name: Run commitFile.js script
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub's automatically generated token
-        REPO_NAME: ${{ github.repository }}  # Automatically resolves repository name
-        COMMITTER_NAME: "GitHub Actions"
-        COMMITTER_EMAIL: "actions@github.com"
-        BRANCH: ${{ github.event.inputs.target_branch }}  # Get the target branch from input
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # GitHub token to access the repository
+        GITHUB_REPOSITORY: ${{ github.repository }}  # Get repo in 'owner/repo' format
+        TARGET_BRANCH: ${{ github.event.inputs.target_branch }}  # Target branch specified by the user
       run: |
-        set -e  # Fail the workflow if any command fails
-
-        # Fetch the latest commit SHA for the target branch
-        echo "Fetching latest commit SHA for branch: $BRANCH"
-        SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-          -H "Accept: application/vnd.github.v3+json" \
-          "https://api.github.com/repos/$REPO_NAME/git/refs/heads/$BRANCH" | jq -r '.object.sha')
-
-        # Debug: Check if the SHA was fetched correctly
-        echo "Fetched SHA: $SHA"
-
-        if [ -z "$SHA" ]; then
-          echo "Error: Failed to fetch the commit SHA for the branch $BRANCH"
-          exit 1
-        fi
-
-        # Create the file content and encode it in base64
-        echo "Encoding content in base64"
-        CONTENT=$(echo -n "This is a new file created via GitHub Actions" | base64)
-
-        # Debug: Check the content length
-        echo "Content length: ${#CONTENT}"
-
-        if [ ${#CONTENT} -lt 40 ]; then
-          echo "Error: The content is too short to be valid for base64 encoding."
-          exit 1
-        fi
-
-        # Create a new blob (file) via GitHub API
-        echo "Creating a new blob (file)"
-        BLOB_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
-          -H "Accept: application/vnd.github.v3+json" \
-          -d "{\"content\": \"$CONTENT\", \"encoding\": \"base64\"}" \
-          "https://api.github.com/repos/$REPO_NAME/git/blobs" | jq -r '.sha')
-
-        # Debug: Check if the BLOB_SHA was created correctly
-        echo "Created blob SHA: $BLOB_SHA"
-
-        if [ -z "$BLOB_SHA" ]; then
-          echo "Error: Failed to create blob (file)."
-          exit 1
-        fi
-
-        # Create a new tree (commit object) including the new file
-        echo "Creating a new commit tree"
-        TREE_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
-          -H "Accept: application/vnd.github.v3+json" \
-          -d "{
-                \"base_tree\": \"$SHA\",
-                \"tree\": [
-                  {
-                    \"path\": \"newfile.txt\",
-                    \"mode\": \"100644\",
-                    \"type\": \"blob\",
-                    \"sha\": \"$BLOB_SHA\"
-                  }
-                ]
-              }" \
-          "https://api.github.com/repos/$REPO_NAME/git/trees" | jq -r '.sha')
-
-        # Debug: Check if the TREE_SHA was created correctly
-        echo "Created tree SHA: $TREE_SHA"
-
-        if [ -z "$TREE_SHA" ]; then
-          echo "Error: Failed to create commit tree."
-          exit 1
-        fi
-
-        # Create a new commit
-        echo "Creating a new commit"
-        COMMIT_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
-          -H "Accept: application/vnd.github.v3+json" \
-          -d "{
-                \"message\": \"Add newfile.txt via curl\",
-                \"tree\": \"$TREE_SHA\",
-                \"parents\": [\"$SHA\"],
-                \"author\": {
-                  \"name\": \"$COMMITTER_NAME\",
-                  \"email\": \"$COMMITTER_EMAIL\"
-                },
-                \"committer\": {
-                  \"name\": \"$COMMITTER_NAME\",
-                  \"email\": \"$COMMITTER_EMAIL\"
-                }
-              }" \
-          "https://api.github.com/repos/$REPO_NAME/git/commits" | jq -r '.sha')
-
-        # Debug: Check if the COMMIT_SHA was created correctly
-        echo "Created commit SHA: $COMMIT_SHA"
-
-        if [ -z "$COMMIT_SHA" ]; then
-          echo "Error: Failed to create commit."
-          exit 1
-        fi
-
-        # Update the reference to the new commit
-        echo "Updating branch reference to the new commit"
-        curl -s -X PATCH -H "Authorization: token $GITHUB_TOKEN" \
-          -H "Accept: application/vnd.github.v3+json" \
-          -d "{\"sha\": \"$COMMIT_SHA\"}" \
-          "https://api.github.com/repos/$REPO_NAME/git/refs/heads/$BRANCH"
+        # Run the script from the 'scripts' folder
+        node scripts/commitFile.js
