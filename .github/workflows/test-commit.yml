@@ -12,5 +12,67 @@ jobs:
   test-commit:
     runs-on: ubuntu-latest
     steps:
-      - name: staring
-        run: echo "welcome to test commit"
+      - name: Checkout the repository
+        uses: actions/checkout@v2
+  
+      - name: Create new file
+        run: |
+          echo "This is a new file created via GitHub Actions" > newfile.txt
+  
+      - name: Commit new file via curl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub's automatically generated token
+          REPO_NAME: ${{ github.repository }}  # Automatically resolves repository name
+          COMMITTER_NAME: "GitHub Actions"
+          COMMITTER_EMAIL: "actions@github.com"
+          BRANCH: "main"  # Specify the target branch (e.g., main)
+        run: |
+          # Get the latest commit SHA to create a new commit
+          SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO_NAME/git/refs/heads/$BRANCH" | jq -r '.object.sha')
+  
+          # Create a new file and encode the content in base64
+          CONTENT=$(echo -n "This is a new file created via GitHub Actions" | base64)
+  
+          # Create a new blob (file) via GitHub API
+          BLOB_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+            -d "{\"content\": \"$CONTENT\", \"encoding\": \"base64\"}" \
+            "https://api.github.com/repos/$REPO_NAME/git/blobs" | jq -r '.sha')
+  
+          # Create a new tree (commit object) including the new file
+          TREE_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+            -d "{
+                  \"base_tree\": \"$SHA\",
+                  \"tree\": [
+                    {
+                      \"path\": \"newfile.txt\",
+                      \"mode\": \"100644\",
+                      \"type\": \"blob\",
+                      \"sha\": \"$BLOB_SHA\"
+                    }
+                  ]
+                }" \
+            "https://api.github.com/repos/$REPO_NAME/git/trees" | jq -r '.sha')
+  
+          # Create a new commit
+          COMMIT_SHA=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+            -d "{
+                  \"message\": \"Add newfile.txt via curl\",
+                  \"tree\": \"$TREE_SHA\",
+                  \"parents\": [\"$SHA\"],
+                  \"author\": {
+                    \"name\": \"$COMMITTER_NAME\",
+                    \"email\": \"$COMMITTER_EMAIL\"
+                  },
+                  \"committer\": {
+                    \"name\": \"$COMMITTER_NAME\",
+                    \"email\": \"$COMMITTER_EMAIL\"
+                  }
+                }" \
+            "https://api.github.com/repos/$REPO_NAME/git/commits" | jq -r '.sha')
+  
+          # Update the reference to the new commit
+          curl -s -X PATCH -H "Authorization: token $GITHUB_TOKEN" \
+            -d "{\"sha\": \"$COMMIT_SHA\"}" \
+            "https://api.github.com/repos/$REPO_NAME/git/refs/heads/$BRANCH"
+
